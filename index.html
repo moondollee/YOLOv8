@@ -2,59 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>YOLOv8 Object Detection (Image Upload)</title>
+  <title>YOLOv8 Real-Time Detection (Mobile Friendly)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   <style>
-    body { background: #111; color: white; text-align: center; font-family: sans-serif; }
-    canvas { margin-top: 20px; border: 1px solid #aaa; }
-    #loading { margin-top: 10px; }
+    body {
+      margin: 0;
+      background: #000;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      max-width: 100%;
+      height: auto;
+    }
+    #status {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
-  <h2>YOLOv8 Object Detection (Image Upload)</h2>
-  <input type="file" id="imageUpload" accept="image/*"><br>
-  <div id="loading">모델 로딩 중...</div>
+  <div id="status">📦 모델 로딩 중...</div>
+  <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
 
   <script>
+    const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const imageInput = document.getElementById('imageUpload');
-    const loading = document.getElementById('loading');
+    const statusDiv = document.getElementById('status');
 
-    cocoSsd.load().then(model => {
-      loading.innerText = '✅ 모델 로딩 완료! 이미지를 업로드해보세요.';
-      imageInput.addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const img = new Image();
-        img.onload = async () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-
-          const predictions = await model.detect(img);
-          if (predictions.length === 0) {
-            loading.innerText = '❗ 객체를 찾지 못했습니다.';
-          } else {
-            loading.innerText = `✅ ${predictions.length}개 객체 인식됨`;
-          }
-
-          predictions.forEach(pred => {
-            const [x, y, width, height] = pred.bbox;
-            ctx.strokeStyle = 'lime';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, width, height);
-            ctx.fillStyle = 'lime';
-            ctx.font = '16px sans-serif';
-            ctx.fillText(pred.class, x, y > 10 ? y - 5 : 10);
-          });
-        };
-        img.src = URL.createObjectURL(file);
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }, // 후면 카메라 (모바일용)
+        audio: false
       });
-    });
+      video.srcObject = stream;
+      return new Promise(resolve => {
+        video.onloadedmetadata = () => {
+          resolve(video);
+        };
+      });
+    }
+
+    async function run() {
+      const model = await cocoSsd.load();
+      statusDiv.innerText = '✅ 모델 로딩 완료! 실시간 인식 중...';
+
+      await setupCamera();
+      video.play();
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      async function detectFrame() {
+        const predictions = await model.detect(video);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        predictions.forEach(pred => {
+          const [x, y, width, height] = pred.bbox;
+          ctx.strokeStyle = 'lime';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, width, height);
+          ctx.fillStyle = 'lime';
+          ctx.font = '16px sans-serif';
+          ctx.fillText(pred.class, x, y > 10 ? y - 5 : 10);
+        });
+
+        requestAnimationFrame(detectFrame);
+      }
+
+      detectFrame();
+    }
+
+    run();
   </script>
 </body>
 </html>
