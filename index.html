@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YOLOv8 Object Detection (Image Upload)</title>
+  <style>
+    body { font-family: sans-serif; background: #111; color: white; text-align: center; }
+    canvas { margin-top: 10px; border: 1px solid #ccc; }
+    input[type="file"] { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>YOLOv8 Object Detection (Image Upload)</h1>
+  <input type="file" id="imageUpload" accept="image/*" />
+  <canvas id="canvas"></canvas>
+
+  <script type="module">
+    import { load } from 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd';
+    import * as tf from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs';
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const imageUpload = document.getElementById('imageUpload');
+
+    const model = await load();
+    console.log('Model loaded.');
+
+    imageUpload.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const img = new Image();
+      img.onload = async () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const predictions = await model.detect(img);
+        predictions.forEach(pred => {
+          ctx.strokeStyle = 'lime';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(...pred.bbox);
+          ctx.fillStyle = 'lime';
+          ctx.font = '16px sans-serif';
+          ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] > 10 ? pred.bbox[1] - 5 : 10);
+        });
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  </script>
+</body>
+</html>
